@@ -9,8 +9,11 @@ try:
 except ImportError:
     import urlparse
 
-from poetry.config import Config
+from tomlkit import parse
+
+from poetry.config.config import Config
 from poetry.utils._compat import Path
+from poetry.utils.helpers import merge_dicts
 from poetry.utils.toml_file import TomlFile
 
 
@@ -24,11 +27,34 @@ def tmp_dir():
 
 
 @pytest.fixture
-def config():  # type: () -> Config
-    with tempfile.NamedTemporaryFile() as f:
-        f.close()
+def config_document():
+    content = """cache-dir = "/foo"
+"""
+    doc = parse(content)
 
-        return Config(TomlFile(f.name))
+    return doc
+
+
+@pytest.fixture
+def config_source(config_document, mocker):
+    file = TomlFile(Path(tempfile.mktemp()))
+    mocker.patch.object(file, "exists", return_value=True)
+    mocker.patch.object(file, "read", return_value=config_document)
+    mocker.patch.object(
+        file, "write", return_value=lambda new: merge_dicts(config_document, new)
+    )
+    mocker.patch(
+        "poetry.config.config_source.ConfigSource.file",
+        new_callable=mocker.PropertyMock,
+        return_value=file,
+    )
+
+
+@pytest.fixture
+def config(config_source):
+    c = Config()
+
+    return c
 
 
 def mock_clone(_, source, dest):
@@ -82,3 +108,11 @@ def http():
     yield httpretty
 
     httpretty.disable()
+
+
+@pytest.fixture
+def fixture_dir():
+    def _fixture_dir(name):
+        return Path(__file__).parent / "fixtures" / name
+
+    return _fixture_dir

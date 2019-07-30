@@ -8,9 +8,7 @@ except ImportError:
     import urlparse
 
 from cleo import ApplicationTester
-from tomlkit import document
 
-from poetry.config import Config as BaseConfig
 from poetry.console import Application as BaseApplication
 from poetry.installation.noop_installer import NoopInstaller
 from poetry.poetry import Poetry as BasePoetry
@@ -90,11 +88,6 @@ class Application(BaseApplication):
         self._poetry._pool = poetry.pool
 
 
-class Config(BaseConfig):
-    def __init__(self, _):
-        self._content = document()
-
-
 class Locker(BaseLocker):
     def __init__(self, lock, local_config):
         self._lock = TomlFile(lock)
@@ -134,13 +127,12 @@ class Locker(BaseLocker):
 
 
 class Poetry(BasePoetry):
-    def __init__(self, file, local_config, package, locker):
+    def __init__(self, file, local_config, package, locker, config):
         self._file = TomlFile(file)
         self._package = package
         self._local_config = local_config
         self._locker = Locker(locker.lock.path, locker._local_config)
-        self._config = Config.create("config.toml")
-        self._auth_config = Config.create("auth.toml")
+        self._config = config
 
         # Configure sources
         self._pool = Pool()
@@ -169,7 +161,7 @@ def project_directory():
 
 
 @pytest.fixture
-def poetry(repo, project_directory):
+def poetry(repo, project_directory, config_source):
     p = Poetry.create(Path(__file__).parent.parent / "fixtures" / project_directory)
 
     with p.file.path.open(encoding="utf-8") as f:
